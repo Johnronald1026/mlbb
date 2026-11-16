@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MLBB Hero Meta Dashboard</title>
+  <style>
+:root {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --ink: #f0efec;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.10);
+  --accent: #3987e5;
+  --tank: #3987e5;
+  --fighter: #d95926;
+  --assassin: #199e70;
+  --mage: #c98500;
+  --marksman: #d55181;
+  --support: #0ca30c;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.top, main, footer { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 28px;
+  padding-bottom: 16px;
+}
+
+h1 { margin: 0; font-size: 26px; letter-spacing: -0.01em; }
+h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+.sub { margin: 4px 0 0; color: var(--ink-2); }
+.hint { margin: -8px 0 12px; color: var(--muted); font-size: 12px; }
+.count { color: var(--muted); font-weight: 400; }
+
+.badge {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* Filters */
+.filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+
+input, select, .seg button {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-height: 40px;
+}
+input { flex: 1 1 180px; min-width: 0; }
+input:focus-visible, select:focus-visible, button:focus-visible, th:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.seg { display: flex; }
+.seg button { border-radius: 0; margin-left: -1px; cursor: pointer; color: var(--ink-2); }
+.seg button:first-child { border-radius: 8px 0 0 8px; margin-left: 0; }
+.seg button:last-child { border-radius: 0 8px 8px 0; }
+.seg button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* Tiles */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.tile, .card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.tile .label { color: var(--ink-2); font-size: 12px; }
+.tile .value { font-size: 24px; font-weight: 600; margin-top: 2px; }
+.tile .note { color: var(--muted); font-size: 12px; }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+
+/* Bar charts */
+.bars { display: grid; gap: 6px; }
+.bar-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 52px;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  border-radius: 6px;
+}
+.bar-row.click { cursor: pointer; }
+.bar-row:hover { background: rgba(255, 255, 255, 0.04); }
+.bar-row.dim { opacity: 0.35; }
+.bar-name { color: var(--ink-2); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.track { border-left: 1px solid var(--axis); height: 18px; }
+.bar { height: 100%; min-width: 2px; border-radius: 0 4px 4px 0; background: var(--accent); transition: width 0.25s; }
+.bar-val { font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; }
+
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.Tank { background: var(--tank); }
+.Fighter { background: var(--fighter); }
+.Assassin { background: var(--assassin); }
+.Mage { background: var(--mage); }
+.Marksman { background: var(--marksman); }
+.Support { background: var(--support); }
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 9px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--grid); }
+th { color: var(--ink-2); font-weight: 500; font-size: 12px; cursor: pointer; user-select: none; }
+th.left, td.left { text-align: left; }
+th.sorted { color: var(--ink); }
+td.num { font-variant-numeric: tabular-nums; }
+tbody tr:hover { background: rgba(255, 255, 255, 0.04); }
+.empty { text-align: center; color: var(--muted); padding: 24px; }
+
+footer { color: var(--muted); font-size: 12px; padding-top: 16px; padding-bottom: 32px; }
+
+.tip {
+  position: fixed;
+  z-index: 10;
+  pointer-events: none;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+  max-width: 220px;
+}
+.tip b { color: var(--ink); display: block; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>MLBB Hero Meta</h1>
+      <p class="sub">Win, pick and ban rates across the Land of Dawn</p>
+    </div>
+    <span class="badge" id="dataBadge"></span>
+  </header>
+
+  <main>
+    <section class="filters" aria-label="Filters">
+      <input id="search" type="search" placeholder="Search hero…" aria-label="Search hero">
+      <select id="role" aria-label="Filter by role"></select>
+      <div class="seg" id="metric" role="group" aria-label="Metric">
+        <button data-m="win" class="on">Win rate</button>
+        <button data-m="pick">Pick rate</button>
+        <button data-m="ban">Ban rate</button>
+      </div>
+    </section>
+
+    <section class="tiles" id="tiles" aria-label="Summary"></section>
+
+    <section class="grid">
+      <article class="card">
+        <h2 id="topTitle"></h2>
+        <div class="bars" id="topChart"></div>
+      </article>
+      <article class="card">
+        <h2 id="roleTitle"></h2>
+        <p class="hint">Tap a role to filter</p>
+        <div class="bars" id="roleChart"></div>
+      </article>
+    </section>
+
+    <section class="card">
+      <h2>All heroes <span class="count" id="count"></span></h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th data-k="name" class="left">Hero</th>
+              <th data-k="role" class="left">Role</th>
+              <th data-k="lane" class="left">Lane</th>
+              <th data-k="win">Win %</th>
+              <th data-k="pick">Pick %</th>
+              <th data-k="ban">Ban %</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer id="foot"></footer>
+  <div class="tip" id="tip" hidden></div>
+
+  <script>
+// SAMPLE DATA — the win/pick/ban numbers below are placeholders for demo purposes,
+// not live game statistics. Replace them with real figures before presenting.
+// Format: [name, role, lane, winRate, pickRate, banRate]
+const DATA_INFO = { label: "Sample data", updated: "2026-11-16" };
+
+const HEROES = [
+  ["Tigreal", "Tank", "Roam", 50.8, 1.12, 0.6],
+  ["Franco", "Tank", "Roam", 48.9, 1.64, 4.2],
+  ["Khufra", "Tank", "Roam", 49.6, 0.88, 1.9],
+  ["Atlas", "Tank", "Roam", 50.2, 0.74, 6.8],
+  ["Akai", "Tank", "Jungle", 51.1, 0.52, 1.1],
+  ["Gatotkaca", "Tank", "Roam", 52.4, 0.47, 2.3],
+  ["Belerick", "Tank", "Roam", 53.9, 0.69, 41.5],
+  ["Hylos", "Tank", "Roam", 51.7, 0.58, 3.4],
+
+  ["Chou", "Fighter", "EXP", 48.2, 1.95, 3.7],
+  ["Masha", "Fighter", "EXP", 58.6, 0.55, 36.2],
+  ["Argus", "Fighter", "EXP", 55.3, 0.61, 1.2],
+  ["Guinevere", "Fighter", "EXP", 51.4, 0.86, 2.1],
+  ["Paquito", "Fighter", "EXP", 50.6, 0.72, 8.9],
+  ["Yu Zhong", "Fighter", "EXP", 49.8, 1.21, 2.6],
+  ["Sun", "Fighter", "EXP", 53.1, 0.93, 18.4],
+  ["Alucard", "Fighter", "Jungle", 49.1, 1.48, 0.9],
+  ["Balmond", "Fighter", "Jungle", 47.3, 0.81, 0.3],
+  ["Thamuz", "Fighter", "EXP", 51.9, 0.66, 1.5],
+
+  ["Ling", "Assassin", "Jungle", 52.3, 0.74, 0.8],
+  ["Fanny", "Assassin", "Jungle", 46.8, 0.98, 5.6],
+  ["Lancelot", "Assassin", "Jungle", 49.4, 1.37, 3.1],
+  ["Hayabusa", "Assassin", "Jungle", 50.1, 1.26, 2.4],
+  ["Gusion", "Assassin", "Jungle", 48.5, 1.09, 0.7],
+  ["Saber", "Assassin", "Jungle", 51.2, 0.92, 4.8],
+  ["Karina", "Assassin", "Jungle", 50.7, 0.57, 0.5],
+  ["Aamon", "Assassin", "Jungle", 51.6, 0.49, 1.3],
+
+  ["Eudora", "Mage", "Mid", 52.9, 1.18, 44.7],
+  ["Kagura", "Mage", "Mid", 48.7, 0.83, 0.9],
+  ["Lunox", "Mage", "Mid", 49.9, 0.64, 1.6],
+  ["Valir", "Mage", "Mid", 51.3, 0.79, 2.2],
+  ["Pharsa", "Mage", "Mid", 50.4, 0.71, 0.6],
+  ["Yve", "Mage", "Mid", 51.8, 0.45, 1.8],
+  ["Xavier", "Mage", "Mid", 49.5, 0.97, 0.7],
+  ["Nana", "Mage", "Mid", 52.1, 1.32, 7.4],
+
+  ["Miya", "Marksman", "Gold", 51.5, 3.41, 0.8],
+  ["Layla", "Marksman", "Gold", 50.9, 2.87, 0.4],
+  ["Hanabi", "Marksman", "Gold", 51.4, 3.12, 0.5],
+  ["Irithel", "Marksman", "Gold", 52.5, 0.43, 0.3],
+  ["Natan", "Marksman", "Gold", 51.2, 0.39, 0.2],
+  ["Claude", "Marksman", "Gold", 48.8, 1.06, 1.4],
+  ["Granger", "Marksman", "Gold", 49.7, 1.41, 3.9],
+  ["Beatrix", "Marksman", "Gold", 47.9, 0.85, 0.6],
+  ["Moskov", "Marksman", "Gold", 50.3, 1.17, 1.0],
+
+  ["Estes", "Support", "Roam", 53.4, 0.91, 32.8],
+  ["Rafaela", "Support", "Roam", 52.8, 0.62, 0.6],
+  ["Angela", "Support", "Roam", 51.0, 1.53, 9.7],
+  ["Mathilda", "Support", "Roam", 50.5, 0.48, 2.9],
+  ["Floryn", "Support", "Roam", 52.2, 0.77, 5.1],
+  ["Diggie", "Support", "Roam", 51.7, 0.56, 12.3],
+  ["Marcel", "Support", "Roam", 57.2, 0.31, 38.9]
+].map(([name, role, lane, win, pick, ban]) => ({ name, role, lane, win, pick, ban }));
+</script>
+  <script>
+const ROLES = ["Tank", "Fighter", "Assassin", "Mage", "Marksman", "Support"];
+const METRICS = { win: "Win rate", pick: "Pick rate", ban: "Ban rate" };
+
+const state = { q: "", role: "All", metric: "win", sort: "win", dir: -1 };
+
+const $ = (id) => document.getElementById(id);
+const pct = (n) => n.toFixed(2).replace(/\.?0+$/, "") + "%";
+const avg = (list, k) => list.reduce((s, h) => s + h[k], 0) / (list.length || 1);
+const maxBy = (list, k) => list.reduce((a, b) => (b[k] > a[k] ? b : a));
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+/* ---------- Tooltip ---------- */
+const tip = $("tip");
+function showTip(e, title, lines) {
+  tip.replaceChildren(el("b", "", title), ...lines.map((l) => el("div", "", l)));
+  tip.hidden = false;
+  const x = Math.min(e.clientX + 12, window.innerWidth - tip.offsetWidth - 8);
+  const y = Math.min(e.clientY + 12, window.innerHeight - tip.offsetHeight - 8);
+  tip.style.left = Math.max(8, x) + "px";
+  tip.style.top = Math.max(8, y) + "px";
+}
+function hideTip() { tip.hidden = true; }
+
+/* ---------- Bar row ---------- */
+function barRow({ name, value, max, color, tipTitle, tipLines, onClick, dim }) {
+  const row = el("div", "bar-row" + (onClick ? " click" : "") + (dim ? " dim" : ""));
+  const track = el("div", "track");
+  const bar = el("div", "bar" + (color ? " " + color : ""));
+  bar.style.width = (max ? (value / max) * 100 : 0) + "%";
+  track.append(bar);
+  row.append(el("div", "bar-name", name), track, el("div", "bar-val", pct(value)));
+  row.addEventListener("pointermove", (e) => showTip(e, tipTitle, tipLines));
+  row.addEventListener("pointerleave", hideTip);
+  if (onClick) row.addEventListener("click", onClick);
+  return row;
+}
+
+const heroLines = (h) => [
+  `${h.role} · ${h.lane} lane`,
+  `Win ${pct(h.win)} · Pick ${pct(h.pick)} · Ban ${pct(h.ban)}`
+];
+
+/* ---------- Render ---------- */
+function filtered() {
+  const q = state.q.trim().toLowerCase();
+  return HEROES.filter(
+    (h) => (state.role === "All" || h.role === state.role) && h.name.toLowerCase().includes(q)
+  );
+}
+
+function renderTiles(list) {
+  const tiles = $("tiles");
+  if (!list.length) { tiles.replaceChildren(); return; }
+  const top = { win: maxBy(list, "win"), pick: maxBy(list, "pick"), ban: maxBy(list, "ban") };
+  const items = [
+    ["Heroes", String(list.length), state.role === "All" ? "All roles" : state.role],
+    ["Average win rate", pct(+avg(list, "win").toFixed(2)), "Across selection"],
+    ["Highest win rate", top.win.name, pct(top.win.win)],
+    ["Most picked", top.pick.name, pct(top.pick.pick)],
+    ["Most banned", top.ban.name, pct(top.ban.ban)]
+  ];
+  tiles.replaceChildren(
+    ...items.map(([label, value, note]) => {
+      const t = el("div", "tile");
+      t.append(el("div", "label", label), el("div", "value", value), el("div", "note", note));
+      return t;
+    })
+  );
+}
+
+function renderTop(list) {
+  const m = state.metric;
+  $("topTitle").textContent = `Top 10 by ${METRICS[m].toLowerCase()}`;
+  const top = [...list].sort((a, b) => b[m] - a[m]).slice(0, 10);
+  const max = top.length ? top[0][m] : 0;
+  $("topChart").replaceChildren(
+    ...(top.length
+      ? top.map((h) => barRow({ name: h.name, value: h[m], max, tipTitle: h.name, tipLines: heroLines(h) }))
+      : [el("div", "empty", "No heroes match")])
+  );
+}
+
+function renderRoles() {
+  const m = state.metric;
+  $("roleTitle").textContent = `Average ${METRICS[m].toLowerCase()} by role`;
+  const rows = ROLES.map((r) => {
+    const list = HEROES.filter((h) => h.role === r);
+    return { role: r, n: list.length, value: +avg(list, m).toFixed(2) };
+  });
+  const max = Math.max(...rows.map((r) => r.value));
+  $("roleChart").replaceChildren(
+    ...rows.map((r) =>
+      barRow({
+        name: r.role,
+        value: r.value,
+        max,
+        color: r.role,
+        dim: state.role !== "All" && state.role !== r.role,
+        tipTitle: r.role,
+        tipLines: [`${r.n} heroes`, `Average ${METRICS[m].toLowerCase()} ${pct(r.value)}`],
+        onClick: () => {
+          state.role = state.role === r.role ? "All" : r.role;
+          $("role").value = state.role;
+          render();
+        }
+      })
+    )
+  );
+}
+
+function renderTable(list) {
+  const k = state.sort;
+  const sorted = [...list].sort((a, b) =>
+    typeof a[k] === "string" ? a[k].localeCompare(b[k]) * state.dir : (a[k] - b[k]) * state.dir
+  );
+  $("count").textContent = `(${list.length})`;
+  document.querySelectorAll("th").forEach((th) => {
+    const on = th.dataset.k === k;
+    th.classList.toggle("sorted", on);
+    th.setAttribute("aria-sort", on ? (state.dir === 1 ? "ascending" : "descending") : "none");
+    th.textContent = th.textContent.replace(/ [▲▼]$/, "") + (on ? (state.dir === 1 ? " ▲" : " ▼") : "");
+  });
+  if (!sorted.length) {
+    const tr = el("tr");
+    const td = el("td", "empty", "No heroes match your filters");
+    td.colSpan = 6;
+    tr.append(td);
+    $("rows").replaceChildren(tr);
+    return;
+  }
+  $("rows").replaceChildren(
+    ...sorted.map((h) => {
+      const tr = el("tr");
+      const role = el("td", "left");
+      role.append(el("span", "dot " + h.role), document.createTextNode(h.role));
+      tr.append(
+        el("td", "left", h.name),
+        role,
+        el("td", "left", h.lane),
+        el("td", "num", h.win.toFixed(2)),
+        el("td", "num", h.pick.toFixed(2)),
+        el("td", "num", h.ban.toFixed(2))
+      );
+      return tr;
+    })
+  );
+}
+
+function render() {
+  const list = filtered();
+  renderTiles(list);
+  renderTop(list);
+  renderRoles();
+  renderTable(list);
+}
+
+/* ---------- Init ---------- */
+function init() {
+  $("role").replaceChildren(
+    ...["All", ...ROLES].map((r) => {
+      const o = el("option", "", r === "All" ? "All roles" : r);
+      o.value = r;
+      return o;
+    })
+  );
+  $("dataBadge").textContent = `${DATA_INFO.label} · ${DATA_INFO.updated}`;
+  $("foot").textContent =
+    `${DATA_INFO.label}, last edited ${DATA_INFO.updated}. Update the numbers in data.js. ` +
+    "Fan-made project, not affiliated with Moonton.";
+
+  $("search").addEventListener("input", (e) => { state.q = e.target.value; render(); });
+  $("role").addEventListener("change", (e) => { state.role = e.target.value; render(); });
+  $("metric").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    state.metric = b.dataset.m;
+    state.sort = b.dataset.m;
+    state.dir = -1;
+    document.querySelectorAll("#metric button").forEach((x) => x.classList.toggle("on", x === b));
+    render();
+  });
+  document.querySelectorAll("th").forEach((th) => {
+    th.tabIndex = 0;
+    const go = () => {
+      const k = th.dataset.k;
+      if (state.sort === k) state.dir *= -1;
+      else { state.sort = k; state.dir = typeof HEROES[0][k] === "string" ? 1 : -1; }
+      render();
+    };
+    th.addEventListener("click", go);
+    th.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  });
+  window.addEventListener("scroll", hideTip, { passive: true });
+  render();
+}
+
+init();
+</script>
+</body>
+</html>
