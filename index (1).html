@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MLBB Hero Meta Dashboard</title>
+  <style>
+:root {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --ink: #f0efec;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.10);
+  --accent: #3987e5;
+  --tank: #3987e5;
+  --fighter: #d95926;
+  --assassin: #199e70;
+  --mage: #c98500;
+  --marksman: #d55181;
+  --support: #0ca30c;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.top, main, footer { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 28px;
+  padding-bottom: 16px;
+}
+
+h1 { margin: 0; font-size: 26px; letter-spacing: -0.01em; }
+h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+.sub { margin: 4px 0 0; color: var(--ink-2); }
+.hint { margin: -8px 0 12px; color: var(--muted); font-size: 12px; }
+.count { color: var(--muted); font-weight: 400; }
+
+.badge {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* Filters */
+.filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+
+input, select, .seg button {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-height: 40px;
+}
+input { flex: 1 1 180px; min-width: 0; }
+input:focus-visible, select:focus-visible, button:focus-visible, th:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.seg { display: flex; }
+.seg button { border-radius: 0; margin-left: -1px; cursor: pointer; color: var(--ink-2); }
+.seg button:first-child { border-radius: 8px 0 0 8px; margin-left: 0; }
+.seg button:last-child { border-radius: 0 8px 8px 0; }
+.seg button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* Tiles */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.tile, .card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.tile .label { color: var(--ink-2); font-size: 12px; }
+.tile .value { font-size: 24px; font-weight: 600; margin-top: 2px; }
+.tile .note { color: var(--muted); font-size: 12px; }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+
+/* Bar charts */
+.bars { display: grid; gap: 6px; }
+.bar-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 52px;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  border-radius: 6px;
+}
+.bar-row.click { cursor: pointer; }
+.bar-row:hover { background: rgba(255, 255, 255, 0.04); }
+.bar-row.dim { opacity: 0.35; }
+.bar-name { color: var(--ink-2); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.track { border-left: 1px solid var(--axis); height: 18px; }
+.bar { height: 100%; min-width: 2px; border-radius: 0 4px 4px 0; background: var(--accent); transition: width 0.25s; }
+.bar-val { font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; }
+
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.Tank { background: var(--tank); }
+.Fighter { background: var(--fighter); }
+.Assassin { background: var(--assassin); }
+.Mage { background: var(--mage); }
+.Marksman { background: var(--marksman); }
+.Support { background: var(--support); }
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 9px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--grid); }
+th { color: var(--ink-2); font-weight: 500; font-size: 12px; cursor: pointer; user-select: none; }
+th.left, td.left { text-align: left; }
+th.sorted { color: var(--ink); }
+td.num { font-variant-numeric: tabular-nums; }
+tbody tr:hover { background: rgba(255, 255, 255, 0.04); }
+.empty { text-align: center; color: var(--muted); padding: 24px; }
+
+footer { color: var(--muted); font-size: 12px; padding-top: 16px; padding-bottom: 32px; }
+
+.tip {
+  position: fixed;
+  z-index: 10;
+  pointer-events: none;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+  max-width: 220px;
+}
+.tip b { color: var(--ink); display: block; margin-bottom: 2px; }
+footer a { color: var(--ink-2); }
+</style>
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>MLBB Hero Meta</h1>
+      <p class="sub">Win, pick and ban rates across the Land of Dawn</p>
+    </div>
+    <span class="badge" id="dataBadge"></span>
+  </header>
+
+  <main>
+    <section class="filters" aria-label="Filters">
+      <input id="search" type="search" placeholder="Search hero…" aria-label="Search hero">
+      <select id="role" aria-label="Filter by role"></select>
+      <div class="seg" id="metric" role="group" aria-label="Metric">
+        <button data-m="win" class="on">Win rate</button>
+        <button data-m="pick">Pick rate</button>
+        <button data-m="ban">Ban rate</button>
+      </div>
+    </section>
+
+    <section class="tiles" id="tiles" aria-label="Summary"></section>
+
+    <section class="grid">
+      <article class="card">
+        <h2 id="topTitle"></h2>
+        <div class="bars" id="topChart"></div>
+      </article>
+      <article class="card">
+        <h2 id="roleTitle"></h2>
+        <p class="hint">Tap a role to filter</p>
+        <div class="bars" id="roleChart"></div>
+      </article>
+    </section>
+
+    <section class="card">
+      <h2>All heroes <span class="count" id="count"></span></h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th data-k="name" class="left">Hero</th>
+              <th data-k="role" class="left">Role</th>
+              <th data-k="tier" class="left">Tier</th>
+              <th data-k="win">Win %</th>
+              <th data-k="pick">Pick %</th>
+              <th data-k="ban">Ban %</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer id="foot"></footer>
+  <div class="tip" id="tip" hidden></div>
+
+  <script>
+// Hero stats from mlbbhub.com/statistics — All Ranks, last 7 days.
+// Season 42, Patch 2.2.23, copied on 2026-11-16. Re-copy from the source to refresh.
+// Format: [name, roles, tier, winRate, pickRate, banRate]
+const DATA_INFO = {
+  label: "Season 42 · Patch 2.2.23 · All ranks, last 7 days",
+  updated: "2026-11-16",
+  source: "mlbbhub.com",
+  url: "https://mlbbhub.com/statistics"
+};
+
+const HEROES = [
+  ["Masha","Fighter/Tank","S",59.77,0.52,43.06],
+  ["Marcel","Support","S",57.45,0.29,42.95],
+  ["Argus","Fighter","S",56.89,0.51,0.98],
+  ["Khufra","Tank","S",54.78,0.35,2.13],
+  ["Diggie","Support","S",54.36,0.19,3.7],
+  ["Rafaela","Support","S",54.25,0.79,11.23],
+  ["Sun","Fighter","S",54.04,1.73,40.35],
+  ["Bruno","Marksman","A",54.02,0.65,0.34],
+  ["Valir","Mage","S",53.99,1.21,4.07],
+  ["Floryn","Support","S",53.95,0.95,13.2],
+  ["Minotaur","Tank/Support","S",53.76,1.03,8.18],
+  ["Aulus","Fighter","S",53.33,0.73,26.13],
+  ["Lolita","Support/Tank","A",53.26,0.07,0.2],
+  ["Carmilla","Support/Tank","S",53.2,1.29,22.42],
+  ["Obsidia","Marksman","S",53.16,2.12,51.62],
+  ["Edith","Tank/Marksman","A",52.99,0.28,0.13],
+  ["Irithel","Marksman","A",52.88,0.4,0.25],
+  ["Estes","Support","A",52.69,0.62,47.03],
+  ["Hanabi","Marksman","A",52.67,2.38,4.06],
+  ["Xavier","Mage","A",52.64,0.86,0.53],
+  ["Gloo","Tank","A",52.57,0.74,43.42],
+  ["Zhask","Mage","A",52.57,0.33,0.42],
+  ["Ling","Assassin","A",52.53,0.64,0.59],
+  ["Gord","Mage","A",52.51,0.58,0.54],
+  ["Aldous","Fighter","A",52.41,0.47,0.6],
+  ["Minsitthar","Fighter","A",52.37,0.59,3.89],
+  ["Yve","Mage","B",52.08,0.06,0.04],
+  ["Benedetta","Assassin/Fighter","A",51.94,0.42,0.38],
+  ["Cyclops","Mage","A",51.74,0.88,1.39],
+  ["Belerick","Tank","A",51.69,1.7,56.31],
+  ["Bane","Fighter/Mage","B",51.63,0.29,0.18],
+  ["Lukas","Fighter","A",51.6,0.78,30.72],
+  ["Barats","Tank/Fighter","A",51.55,0.7,3.13],
+  ["Natan","Marksman","B",51.48,0.3,0.13],
+  ["Lunox","Mage","B",51.44,0.45,0.82],
+  ["Silvanna","Fighter","A",51.35,0.97,2.06],
+  ["Fredrinn","Fighter/Tank","B",51.31,0.39,1.55],
+  ["Saber","Assassin","A",51.22,0.99,25.16],
+  ["Guinevere","Fighter","B",51.21,0.8,1.76],
+  ["Melissa","Marksman","B",51.18,0.45,0.97],
+  ["Kadita","Mage/Assassin","B",51.12,0.77,2.79],
+  ["Hilda","Fighter/Tank","A",51.07,0.56,13.25],
+  ["Natalia","Assassin","B",51.01,0.31,2.07],
+  ["Cecilion","Mage","B",50.84,0.65,0.17],
+  ["Zetian","Mage","A",50.83,1.62,4.73],
+  ["Faramis","Support/Mage","B",50.74,0.1,0.39],
+  ["Atlas","Tank","B",50.62,0.96,9.75],
+  ["Alice","Tank/Mage","B",50.57,0.9,13.37],
+  ["Terizla","Fighter/Tank","B",50.56,0.36,0.18],
+  ["Kagura","Mage","B",50.52,0.82,1.33],
+  ["Kalea","Support/Fighter","B",50.44,0.76,8.26],
+  ["Aamon","Assassin","B",50.41,0.61,2.49],
+  ["Clint","Marksman","B",50.31,0.76,0.61],
+  ["Badang","Fighter","B",50.3,1.34,3.49],
+  ["Beatrix","Marksman","B",50.3,0.64,0.4],
+  ["Eudora","Mage","B",50.25,1.72,45.33],
+  ["Moskov","Marksman","B",50.23,0.87,0.26],
+  ["Akai","Tank","B",50.18,0.32,1.07],
+  ["Ixia","Marksman","B",50.18,0.74,0.78],
+  ["Khaleed","Fighter","B",50.06,0.13,0.09],
+  ["Brody","Marksman","B",50.04,0.8,1.33],
+  ["Angela","Support","B",50.03,1.76,12.18],
+  ["Vale","Mage","B",50.02,0.5,0.2],
+  ["Hirara","Assassin","B",50,0.61,68.18],
+  ["X.Borg","Fighter","B",49.99,0.57,1.93],
+  ["Hanzo","Assassin","B",49.96,0.33,5.08],
+  ["Paquito","Fighter/Assassin","B",49.94,1.21,15.37],
+  ["Julian","Assassin/Fighter","B",49.92,0.65,0.77],
+  ["Popol and Kupa","Marksman","B",49.9,0.64,2.51],
+  ["Miya","Marksman","B",49.86,2.1,4.15],
+  ["Kaja","Support","B",49.82,0.66,17],
+  ["Odette","Mage","B",49.77,0.54,0.26],
+  ["Leomord","Fighter","B",49.73,0.32,0.61],
+  ["Yin","Fighter/Assassin","B",49.7,0.5,1.7],
+  ["Freya","Fighter","B",49.69,1.05,5.98],
+  ["Suyou","Assassin/Fighter","B",49.61,1.12,1.59],
+  ["Layla","Marksman","B",49.57,1.84,1.83],
+  ["Nolan","Assassin","B",49.57,2.41,17.78],
+  ["Sora","Fighter/Assassin","B",49.53,0.68,4.4],
+  ["Novaria","Mage","B",49.46,1.17,3.89],
+  ["Uranus","Tank","C",49.46,0.3,0.33],
+  ["Johnson","Tank/Support","B",49.44,0.68,1.93],
+  ["Cici","Fighter","B",49.35,0.74,1.2],
+  ["Dyrroth","Fighter","B",49.32,1.62,1.67],
+  ["Vexana","Mage","B",49.22,1.61,1.14],
+  ["Alucard","Fighter/Assassin","C",49.11,0.49,0.32],
+  ["Lylia","Mage","C",49.1,0.48,0.39],
+  ["Yi Sun-shin","Assassin/Marksman","B",49.09,0.87,2.18],
+  ["Yu Zhong","Fighter","C",48.97,0.7,0.75],
+  ["Alpha","Fighter","B",48.96,1.35,0.69],
+  ["Karrie","Marksman","C",48.94,0.57,0.84],
+  ["Ruby","Fighter","C",48.87,0.32,0.3],
+  ["Claude","Marksman","C",48.83,0.76,0.21],
+  ["Joy","Assassin","C",48.81,0.14,0.19],
+  ["Thamuz","Fighter","C",48.81,0.76,1.52],
+  ["Karina","Assassin","B",48.8,0.91,4.91],
+  ["Aurora","Mage","C",48.78,0.64,0.38],
+  ["Zhuxin","Mage","C",48.71,0.29,0.45],
+  ["Gusion","Assassin","B",48.66,1.24,3.23],
+  ["Selena","Assassin/Mage","B",48.59,1.4,5.9],
+  ["Kimmy","Marksman/Mage","C",48.56,0.89,0.74],
+  ["Harley","Assassin/Mage","C",48.5,0.82,3],
+  ["Hylos","Tank","C",48.47,0.27,0.24],
+  ["Phoveus","Fighter","C",48.24,0.28,0.83],
+  ["Hayabusa","Assassin","C",48.23,0.7,1.54],
+  ["Lesley","Marksman/Assassin","B",48.2,1.88,8.5],
+  ["Roger","Fighter/Marksman","C",48.19,0.27,0.09],
+  ["Chang'e","Mage","C",48.11,0.59,0.31],
+  ["Lapu-Lapu","Fighter","C",48.06,0.34,0.27],
+  ["Jawhead","Fighter","C",47.86,0.34,0.34],
+  ["Helcurt","Assassin","C",47.8,0.6,4.71],
+  ["Chip","Support/Tank","C",47.53,0.04,0.21],
+  ["Arlott","Fighter/Assassin","C",47.51,0.49,0.6],
+  ["Wanwan","Marksman","D",47.37,0.14,0.13],
+  ["Martis","Fighter","C",47.21,0.63,0.43],
+  ["Harith","Mage","D",47.16,0.14,0.05],
+  ["Nana","Mage","C",47.13,1.62,3.64],
+  ["Esmeralda","Tank/Mage","C",47.11,0.83,2.15],
+  ["Pharsa","Mage","D",47.06,0.31,0.18],
+  ["Luo Yi","Mage","D",46.92,0.19,0.07],
+  ["Grock","Tank/Fighter","D",46.58,0.34,0.72],
+  ["Balmond","Fighter","D",46.47,0.62,0.38],
+  ["Zilong","Fighter/Assassin","D",46.33,0.71,0.48],
+  ["Baxia","Tank","D",45.57,0.05,0.1],
+  ["Gatotkaca","Tank/Fighter","D",45.43,0.56,0.3],
+  ["Tigreal","Tank","D",45.35,1.96,7.54],
+  ["Chou","Fighter","D",45.11,1.02,3.07],
+  ["Valentina","Mage","D",44.58,0.15,0.14],
+  ["Mathilda","Support/Assassin","D",44.21,0.13,0.18],
+  ["Lancelot","Assassin","D",43.15,0.48,0.46],
+  ["Fanny","Assassin","D",42.81,0.64,1.94],
+  ["Granger","Marksman","D",42.76,1.3,1.6],
+  ["Franco","Tank","D",41.65,0.92,3.02]
+].map(([name, roles, tier, win, pick, ban]) => ({
+  name, roles, role: roles.split("/")[0], tier, win, pick, ban
+}));
+</script>
+  <script>
+const ROLES = ["Tank", "Fighter", "Assassin", "Mage", "Marksman", "Support"];
+const METRICS = { win: "Win rate", pick: "Pick rate", ban: "Ban rate" };
+
+const state = { q: "", role: "All", metric: "win", sort: "win", dir: -1 };
+
+const $ = (id) => document.getElementById(id);
+const pct = (n) => n.toFixed(2).replace(/\.?0+$/, "") + "%";
+const avg = (list, k) => list.reduce((s, h) => s + h[k], 0) / (list.length || 1);
+const maxBy = (list, k) => list.reduce((a, b) => (b[k] > a[k] ? b : a));
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+/* ---------- Tooltip ---------- */
+const tip = $("tip");
+function showTip(e, title, lines) {
+  tip.replaceChildren(el("b", "", title), ...lines.map((l) => el("div", "", l)));
+  tip.hidden = false;
+  const x = Math.min(e.clientX + 12, window.innerWidth - tip.offsetWidth - 8);
+  const y = Math.min(e.clientY + 12, window.innerHeight - tip.offsetHeight - 8);
+  tip.style.left = Math.max(8, x) + "px";
+  tip.style.top = Math.max(8, y) + "px";
+}
+function hideTip() { tip.hidden = true; }
+
+/* ---------- Bar row ---------- */
+function barRow({ name, value, max, color, tipTitle, tipLines, onClick, dim }) {
+  const row = el("div", "bar-row" + (onClick ? " click" : "") + (dim ? " dim" : ""));
+  const track = el("div", "track");
+  const bar = el("div", "bar" + (color ? " " + color : ""));
+  bar.style.width = (max ? (value / max) * 100 : 0) + "%";
+  track.append(bar);
+  row.append(el("div", "bar-name", name), track, el("div", "bar-val", pct(value)));
+  row.addEventListener("pointermove", (e) => showTip(e, tipTitle, tipLines));
+  row.addEventListener("pointerleave", hideTip);
+  if (onClick) row.addEventListener("click", onClick);
+  return row;
+}
+
+const heroLines = (h) => [
+  `${h.roles.replace("/", " / ")} · Tier ${h.tier}`,
+  `Win ${pct(h.win)} · Pick ${pct(h.pick)} · Ban ${pct(h.ban)}`
+];
+
+/* ---------- Render ---------- */
+function filtered() {
+  const q = state.q.trim().toLowerCase();
+  return HEROES.filter(
+    (h) => (state.role === "All" || h.role === state.role) && h.name.toLowerCase().includes(q)
+  );
+}
+
+function renderTiles(list) {
+  const tiles = $("tiles");
+  if (!list.length) { tiles.replaceChildren(); return; }
+  const top = { win: maxBy(list, "win"), pick: maxBy(list, "pick"), ban: maxBy(list, "ban") };
+  const items = [
+    ["Heroes", String(list.length), state.role === "All" ? "All roles" : state.role],
+    ["Average win rate", pct(+avg(list, "win").toFixed(2)), "Across selection"],
+    ["Highest win rate", top.win.name, pct(top.win.win)],
+    ["Most picked", top.pick.name, pct(top.pick.pick)],
+    ["Most banned", top.ban.name, pct(top.ban.ban)]
+  ];
+  tiles.replaceChildren(
+    ...items.map(([label, value, note]) => {
+      const t = el("div", "tile");
+      t.append(el("div", "label", label), el("div", "value", value), el("div", "note", note));
+      return t;
+    })
+  );
+}
+
+function renderTop(list) {
+  const m = state.metric;
+  $("topTitle").textContent = `Top 10 by ${METRICS[m].toLowerCase()}`;
+  const top = [...list].sort((a, b) => b[m] - a[m]).slice(0, 10);
+  const max = top.length ? top[0][m] : 0;
+  $("topChart").replaceChildren(
+    ...(top.length
+      ? top.map((h) => barRow({ name: h.name, value: h[m], max, tipTitle: h.name, tipLines: heroLines(h) }))
+      : [el("div", "empty", "No heroes match")])
+  );
+}
+
+function renderRoles() {
+  const m = state.metric;
+  $("roleTitle").textContent = `Average ${METRICS[m].toLowerCase()} by role`;
+  const rows = ROLES.map((r) => {
+    const list = HEROES.filter((h) => h.role === r);
+    return { role: r, n: list.length, value: +avg(list, m).toFixed(2) };
+  });
+  const max = Math.max(...rows.map((r) => r.value));
+  $("roleChart").replaceChildren(
+    ...rows.map((r) =>
+      barRow({
+        name: r.role,
+        value: r.value,
+        max,
+        color: r.role,
+        dim: state.role !== "All" && state.role !== r.role,
+        tipTitle: r.role,
+        tipLines: [`${r.n} heroes`, `Average ${METRICS[m].toLowerCase()} ${pct(r.value)}`],
+        onClick: () => {
+          state.role = state.role === r.role ? "All" : r.role;
+          $("role").value = state.role;
+          render();
+        }
+      })
+    )
+  );
+}
+
+function renderTable(list) {
+  const k = state.sort;
+  const TIERS = "SABCD";
+  const sorted = [...list].sort((a, b) =>
+    k === "tier" ? (TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier)) * state.dir || b.win - a.win
+    : typeof a[k] === "string" ? a[k].localeCompare(b[k]) * state.dir
+    : (a[k] - b[k]) * state.dir
+  );
+  $("count").textContent = `(${list.length})`;
+  document.querySelectorAll("th").forEach((th) => {
+    const on = th.dataset.k === k;
+    th.classList.toggle("sorted", on);
+    th.setAttribute("aria-sort", on ? (state.dir === 1 ? "ascending" : "descending") : "none");
+    th.textContent = th.textContent.replace(/ [▲▼]$/, "") + (on ? (state.dir === 1 ? " ▲" : " ▼") : "");
+  });
+  if (!sorted.length) {
+    const tr = el("tr");
+    const td = el("td", "empty", "No heroes match your filters");
+    td.colSpan = 6;
+    tr.append(td);
+    $("rows").replaceChildren(tr);
+    return;
+  }
+  $("rows").replaceChildren(
+    ...sorted.map((h) => {
+      const tr = el("tr");
+      const role = el("td", "left");
+      role.append(el("span", "dot " + h.role), document.createTextNode(h.roles.replace("/", " / ")));
+      tr.append(
+        el("td", "left", h.name),
+        role,
+        el("td", "left", h.tier),
+        el("td", "num", h.win.toFixed(2)),
+        el("td", "num", h.pick.toFixed(2)),
+        el("td", "num", h.ban.toFixed(2))
+      );
+      return tr;
+    })
+  );
+}
+
+function render() {
+  const list = filtered();
+  renderTiles(list);
+  renderTop(list);
+  renderRoles();
+  renderTable(list);
+}
+
+/* ---------- Init ---------- */
+function init() {
+  $("role").replaceChildren(
+    ...["All", ...ROLES].map((r) => {
+      const o = el("option", "", r === "All" ? "All roles" : r);
+      o.value = r;
+      return o;
+    })
+  );
+  $("dataBadge").textContent = DATA_INFO.label;
+  const link = el("a", "", DATA_INFO.source);
+  link.href = DATA_INFO.url;
+  $("foot").append(
+    "Data from ", link,
+    ` (${DATA_INFO.label}), copied ${DATA_INFO.updated}. Roles are filtered by each hero’s primary role. ` +
+    "Fan-made project, not affiliated with Moonton."
+  );
+
+  $("search").addEventListener("input", (e) => { state.q = e.target.value; render(); });
+  $("role").addEventListener("change", (e) => { state.role = e.target.value; render(); });
+  $("metric").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    state.metric = b.dataset.m;
+    state.sort = b.dataset.m;
+    state.dir = -1;
+    document.querySelectorAll("#metric button").forEach((x) => x.classList.toggle("on", x === b));
+    render();
+  });
+  document.querySelectorAll("th").forEach((th) => {
+    th.tabIndex = 0;
+    const go = () => {
+      const k = th.dataset.k;
+      if (state.sort === k) state.dir *= -1;
+      else { state.sort = k; state.dir = typeof HEROES[0][k] === "string" ? 1 : -1; }
+      render();
+    };
+    th.addEventListener("click", go);
+    th.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  });
+  window.addEventListener("scroll", hideTip, { passive: true });
+  render();
+}
+
+init();
+</script>
+</body>
+</html>
